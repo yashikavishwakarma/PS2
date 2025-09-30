@@ -9,7 +9,7 @@ import type { Measurement } from "@shared/schema";
 
 export default function Analytics() {
   const { toast } = useToast();
-  const { data: measurements = [], isLoading } = useQuery<Measurement[]>({
+  const { data: measurements = [], isLoading, isError, refetch } = useQuery<Measurement[]>({
     queryKey: ["/api/measurements"],
   });
 
@@ -77,6 +77,17 @@ export default function Analytics() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-destructive mb-4">Failed to load analytics data</p>
+          <Button onClick={() => refetch()}>Retry</Button>
         </div>
       </div>
     );
@@ -159,20 +170,23 @@ export default function Analytics() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {measurements.slice(0, 5).map((m) => (
-                    <div key={m.id} className="flex items-center justify-between border-b pb-3 last:border-0">
-                      <div>
-                        <p className="font-medium capitalize">{m.grainSizeClass} Sand</p>
-                        <p className="text-sm text-muted-foreground">{m.location || 'Unknown location'}</p>
+                  {[...measurements]
+                    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+                    .slice(0, 5)
+                    .map((m) => (
+                      <div key={m.id} className="flex items-center justify-between border-b pb-3 last:border-0">
+                        <div>
+                          <p className="font-medium capitalize">{m.grainSizeClass} Sand</p>
+                          <p className="text-sm text-muted-foreground">{m.location || 'Unknown location'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium">{(m.confidence * 100).toFixed(1)}%</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(m.uploadedAt).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{(m.confidence * 100).toFixed(1)}%</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(m.uploadedAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </CardContent>
             </Card>

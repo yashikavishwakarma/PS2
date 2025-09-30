@@ -38,7 +38,21 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    const data = await res.json();
+    
+    // Transform date strings to Date objects for Measurement types
+    if (Array.isArray(data)) {
+      return data.map(item => {
+        if (item.uploadedAt && typeof item.uploadedAt === 'string') {
+          return { ...item, uploadedAt: new Date(item.uploadedAt) };
+        }
+        return item;
+      });
+    } else if (data?.uploadedAt && typeof data.uploadedAt === 'string') {
+      return { ...data, uploadedAt: new Date(data.uploadedAt) };
+    }
+    
+    return data;
   };
 
 export const queryClient = new QueryClient({

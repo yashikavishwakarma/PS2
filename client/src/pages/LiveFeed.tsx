@@ -2,18 +2,24 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import PredictionCard from "@/components/PredictionCard";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { Measurement } from "@shared/schema";
 
 export default function LiveFeed() {
   const [filter, setFilter] = useState<string>("all");
-  const { data: measurements = [], isLoading } = useQuery<Measurement[]>({
+  const { data: measurements = [], isLoading, isError, refetch } = useQuery<Measurement[]>({
     queryKey: ["/api/measurements"],
   });
 
+  // Sort by most recent first, then filter
+  const sortedMeasurements = [...measurements].sort((a, b) => 
+    new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+  );
+
   const filteredPredictions =
     filter === "all"
-      ? measurements
-      : measurements.filter((p) => p.grainSizeClass === filter);
+      ? sortedMeasurements
+      : sortedMeasurements.filter((p) => p.grainSizeClass === filter);
 
   const filters = [
     { value: "all", label: "All", count: measurements.length },
@@ -40,6 +46,17 @@ export default function LiveFeed() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading feed...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-destructive mb-4">Failed to load live feed</p>
+          <Button onClick={() => refetch()}>Retry</Button>
         </div>
       </div>
     );

@@ -4,14 +4,20 @@ import StatsCard from "@/components/StatsCard";
 import MapView from "@/components/MapView";
 import PredictionCard from "@/components/PredictionCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import type { Measurement } from "@shared/schema";
 
 export default function Dashboard() {
-  const { data: measurements = [], isLoading } = useQuery<Measurement[]>({
+  const { data: measurements = [], isLoading, isError, refetch } = useQuery<Measurement[]>({
     queryKey: ["/api/measurements"],
   });
 
-  const mapMarkers = measurements.map((m) => ({
+  // Sort by most recent first
+  const sortedMeasurements = [...measurements].sort((a, b) => 
+    new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+  );
+
+  const mapMarkers = sortedMeasurements.map((m) => ({
     id: m.id,
     latitude: m.latitude,
     longitude: m.longitude,
@@ -22,7 +28,7 @@ export default function Dashboard() {
     location: m.location || undefined,
   }));
 
-  const recentPredictions = measurements.slice(0, 3);
+  const recentPredictions = sortedMeasurements.slice(0, 3);
 
   const stats = {
     total: measurements.length,
@@ -38,6 +44,17 @@ export default function Dashboard() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading measurements...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-destructive mb-4">Failed to load measurements</p>
+          <Button onClick={() => refetch()}>Retry</Button>
         </div>
       </div>
     );
