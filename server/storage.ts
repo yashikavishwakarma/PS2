@@ -1,4 +1,11 @@
-import { type Measurement, type InsertMeasurement, measurements } from "@shared/schema";
+import { 
+  type Measurement, 
+  type InsertMeasurement, 
+  measurements,
+  users,
+  type User,
+  type UpsertUser,
+} from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 
@@ -6,6 +13,8 @@ export interface IStorage {
   getMeasurement(id: string): Promise<Measurement | undefined>;
   getAllMeasurements(limit?: number): Promise<Measurement[]>;
   createMeasurement(measurement: InsertMeasurement): Promise<Measurement>;
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
 }
 
 export class DbStorage implements IStorage {
@@ -25,6 +34,26 @@ export class DbStorage implements IStorage {
   async createMeasurement(insertMeasurement: InsertMeasurement): Promise<Measurement> {
     const result = await db.insert(measurements).values(insertMeasurement).returning();
     return result[0];
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
   }
 }
 

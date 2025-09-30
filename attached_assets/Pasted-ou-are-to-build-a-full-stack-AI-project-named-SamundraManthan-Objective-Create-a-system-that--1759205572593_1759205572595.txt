@@ -1,0 +1,63 @@
+ou are to build a full-stack AI project named *SamundraManthan*.
+
+## Objective
+Create a system that:
+- Accepts geotagged sand images uploaded via ESP device or manual form.
+- Runs ML inference using a pretrained Keras model (grain_size_model.h5) to classify sediment grain size (fine, medium, coarse).
+- Stores image, coordinates, and predictions in Supabase.
+- Provides a React + Tailwind dashboard with analytics and an interactive coastal map of India.
+
+---
+
+## Backend (Python + FastAPI)
+1. Load pretrained ML model (grain_size_model.h5).
+   - Input: sand image.
+   - Output: {grain_size_class, confidence}.
+2. Supabase integration:
+   - Table images: id, image_url, latitude, longitude, uploaded_at, prediction.
+   - Table predictions: id, image_id, grain_size_class, confidence, created_at.
+3. Endpoints:
+   - POST /predict: accept image + GPS → save in Supabase → run inference → store prediction.
+   - GET /latest: return recent predictions with images + coordinates.
+4. Background worker:
+   - Poll new uploads from Supabase → run inference → push predictions back.
+
+---
+
+## Frontend (React + Tailwind)
+1. Branding: *SamundraManthan* (Ocean theme: teal/blue gradients, clean UI).
+2. Pages:
+   - *Dashboard*:
+     - Dynamic map of India using Leaflet.js.
+     - Markers for each uploaded image (click to view photo, prediction, confidence).
+   - *Analytics*:
+     - Pie chart: % distribution of fine/medium/coarse.
+     - Time-series chart: sediment changes over visits per location.
+     - Heatmap overlay on coastline.
+   - *Upload*:
+     - Simple form: upload sand image + latitude + longitude → calls /predict.
+   - *Live Feed*:
+     - List of latest uploaded images + predictions.
+3. Charts with Chart.js or Recharts.
+4. Responsive with Tailwind.
+
+---
+
+## Workflow
+ESP → Supabase (image + GPS) → Backend ML model → Prediction stored → Dashboard fetches and displays on map + charts.
+
+---
+
+## Deliverables
+- Python backend (FastAPI) with ML inference + Supabase API integration.
+- Supabase schema for images and predictions.
+- React frontend with Tailwind, Leaflet.js, and Chart.js/Recharts.
+- Demo-ready app that works with real or synthetic sand images.
+
+---
+
+### Notes for Implementation
+- Keep backend lightweight, deployable inside Replit or Cursor.
+- Mock Supabase calls with local JSON if keys unavailable, but write code for real connection.
+- Use .env for Supabase URL + anon key.
+- Assume grain_size_model.h5 is present in /models.

@@ -1,14 +1,17 @@
 import { Link, useLocation } from "wouter";
-import { Moon, Sun, Waves } from "lucide-react";
+import { Moon, Sun, Waves, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "./ThemeProvider";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Navbar() {
   const [location] = useLocation();
   const { theme, setTheme } = useTheme();
+  const { isAuthenticated, isLoading } = useAuth();
 
   const navItems = [
-    { path: "/", label: "Dashboard" },
+    { path: "/", label: "Home" },
+    { path: "/dashboard", label: "Dashboard" },
     { path: "/analytics", label: "Analytics" },
     { path: "/upload", label: "Upload" },
     { path: "/feed", label: "Live Feed" },
@@ -39,15 +42,28 @@ export default function Navbar() {
             ))}
           </div>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-            className="text-primary-foreground hover:text-primary-foreground"
-            data-testid="button-theme-toggle"
-          >
-            {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-          </Button>
+          <div className="flex items-center gap-2">
+            {!isLoading && isAuthenticated && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.location.href = '/api/logout'}
+                className="text-primary-foreground hover:text-primary-foreground"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+              className="text-primary-foreground hover:text-primary-foreground"
+              data-testid="button-theme-toggle"
+            >
+              {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
       </div>
     </nav>
