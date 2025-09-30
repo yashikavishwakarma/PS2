@@ -1,39 +1,31 @@
-import { type Measurement, type InsertMeasurement } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { type Measurement, type InsertMeasurement, measurements } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   getMeasurement(id: string): Promise<Measurement | undefined>;
-  getAllMeasurements(): Promise<Measurement[]>;
+  getAllMeasurements(limit?: number): Promise<Measurement[]>;
   createMeasurement(measurement: InsertMeasurement): Promise<Measurement>;
 }
 
-export class MemStorage implements IStorage {
-  private measurements: Map<string, Measurement>;
-
-  constructor() {
-    this.measurements = new Map();
-  }
-
+export class DbStorage implements IStorage {
   async getMeasurement(id: string): Promise<Measurement | undefined> {
-    return this.measurements.get(id);
+    const result = await db.select().from(measurements).where(eq(measurements.id, id)).limit(1);
+    return result[0];
   }
 
-  async getAllMeasurements(): Promise<Measurement[]> {
-    return Array.from(this.measurements.values());
+  async getAllMeasurements(limit: number = 100): Promise<Measurement[]> {
+    return await db
+      .select()
+      .from(measurements)
+      .orderBy(desc(measurements.uploadedAt))
+      .limit(limit);
   }
 
   async createMeasurement(insertMeasurement: InsertMeasurement): Promise<Measurement> {
-    const id = randomUUID();
-    const measurement: Measurement = {
-      ...insertMeasurement,
-      beachType: insertMeasurement.beachType ?? null,
-      location: insertMeasurement.location ?? null,
-      id,
-      uploadedAt: new Date(),
-    };
-    this.measurements.set(id, measurement);
-    return measurement;
+    const result = await db.insert(measurements).values(insertMeasurement).returning();
+    return result[0];
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DbStorage();
