@@ -1,36 +1,86 @@
+import { useQuery } from "@tanstack/react-query";
 import GrainDistributionChart from "@/components/GrainDistributionChart";
 import TrendChart from "@/components/TrendChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileJson, FileSpreadsheet } from "lucide-react";
+import { FileJson, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { Measurement } from "@shared/schema";
 
 export default function Analytics() {
   const { toast } = useToast();
+  const { data: measurements = [], isLoading } = useQuery<Measurement[]>({
+    queryKey: ["/api/measurements"],
+  });
 
-  // todo: remove mock functionality - replace with real data from API
+  const grainCounts = measurements.reduce(
+    (acc, m) => {
+      acc[m.grainSizeClass] = (acc[m.grainSizeClass] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
   const grainData = [
-    { name: "Fine Sand", value: 450, color: "hsl(40, 85%, 65%)" },
-    { name: "Medium Sand", value: 520, color: "hsl(35, 80%, 55%)" },
-    { name: "Coarse Sand", value: 277, color: "hsl(25, 75%, 50%)" },
+    { name: "Fine Sand", value: grainCounts.fine || 0, color: "hsl(40, 85%, 65%)" },
+    { name: "Medium Sand", value: grainCounts.medium || 0, color: "hsl(35, 80%, 55%)" },
+    { name: "Coarse Sand", value: grainCounts.coarse || 0, color: "hsl(25, 75%, 50%)" },
   ];
 
-  const trendData = [
-    { date: "Jan", fine: 45, medium: 52, coarse: 28 },
-    { date: "Feb", fine: 52, medium: 48, coarse: 35 },
-    { date: "Mar", fine: 48, medium: 55, coarse: 30 },
-    { date: "Apr", fine: 58, medium: 50, coarse: 25 },
-    { date: "May", fine: 62, medium: 58, coarse: 32 },
-    { date: "Jun", fine: 55, medium: 62, coarse: 38 },
-  ];
+  const avgConfidence = measurements.length > 0
+    ? (measurements.reduce((sum, m) => sum + m.confidence, 0) / measurements.length * 100).toFixed(1)
+    : "0";
+
+  const mostCommon = grainData.reduce((max, item) => 
+    item.value > max.value ? item : max, grainData[0]
+  );
 
   const handleExport = (format: string) => {
-    console.log(`Exporting data as ${format}`);
+    const data = measurements.map(m => ({
+      id: m.id,
+      latitude: m.latitude,
+      longitude: m.longitude,
+      grainSizeClass: m.grainSizeClass,
+      confidence: m.confidence,
+      location: m.location,
+      uploadedAt: m.uploadedAt,
+    }));
+
+    if (format === "json") {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `measurements-${new Date().toISOString()}.json`;
+      a.click();
+    } else if (format === "csv") {
+      const headers = Object.keys(data[0] || {}).join(",");
+      const rows = data.map(row => Object.values(row).join(","));
+      const csv = [headers, ...rows].join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `measurements-${new Date().toISOString()}.csv`;
+      a.click();
+    }
+
     toast({
-      title: "Export started",
-      description: `Downloading data in ${format.toUpperCase()} format`,
+      title: "Export complete",
+      description: `Downloaded ${measurements.length} measurements as ${format.toUpperCase()}`,
     });
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -42,24 +92,26 @@ export default function Analytics() {
               Comprehensive sediment analysis and trends
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => handleExport("csv")}
-              data-testid="button-export-csv"
-            >
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => handleExport("json")}
-              data-testid="button-export-json"
-            >
-              <FileJson className="h-4 w-4 mr-2" />
-              Export JSON
-            </Button>
-          </div>
+          {measurements.length > 0 && (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => handleExport("csv")}
+                data-testid="button-export-csv"
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleExport("json")}
+                data-testid="button-export-json"
+              >
+                <FileJson className="h-4 w-4 mr-2" />
+                Export JSON
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -68,7 +120,7 @@ export default function Analytics() {
               <CardTitle className="text-lg">Total Samples</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-bold">1,247</p>
+              <p className="text-4xl font-bold">{measurements.length}</p>
               <p className="text-sm text-muted-foreground mt-1">
                 Collected across all sites
               </p>
@@ -76,12 +128,12 @@ export default function Analytics() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Average Grain Size</CardTitle>
+              <CardTitle className="text-lg">Most Common</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-bold">Medium</p>
+              <p className="text-4xl font-bold capitalize">{mostCommon.name.split(' ')[0]}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Most common classification
+                {mostCommon.value} samples
               </p>
             </CardContent>
           </Card>
@@ -90,60 +142,50 @@ export default function Analytics() {
               <CardTitle className="text-lg">Model Accuracy</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-bold">94.2%</p>
+              <p className="text-4xl font-bold">{avgConfidence}%</p>
               <p className="text-sm text-muted-foreground mt-1">
-                ML prediction confidence
+                Average confidence
               </p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <GrainDistributionChart data={grainData} />
-          <TrendChart data={trendData} />
-        </div>
-
-        <div className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Regional Analysis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { region: "Maharashtra", fine: 35, medium: 42, coarse: 23 },
-                  { region: "Goa", fine: 28, medium: 48, coarse: 24 },
-                  { region: "Tamil Nadu", fine: 45, medium: 32, coarse: 23 },
-                  { region: "Kerala", fine: 38, medium: 38, coarse: 24 },
-                ].map((item) => (
-                  <div key={item.region} className="flex items-center gap-4">
-                    <div className="w-32 font-medium">{item.region}</div>
-                    <div className="flex-1 h-8 flex rounded-md overflow-hidden">
-                      <div
-                        className="bg-[hsl(40,85%,65%)] flex items-center justify-center text-xs font-medium"
-                        style={{ width: `${item.fine}%` }}
-                      >
-                        {item.fine}%
+        {measurements.length > 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <GrainDistributionChart data={grainData} />
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {measurements.slice(0, 5).map((m) => (
+                    <div key={m.id} className="flex items-center justify-between border-b pb-3 last:border-0">
+                      <div>
+                        <p className="font-medium capitalize">{m.grainSizeClass} Sand</p>
+                        <p className="text-sm text-muted-foreground">{m.location || 'Unknown location'}</p>
                       </div>
-                      <div
-                        className="bg-[hsl(35,80%,55%)] flex items-center justify-center text-xs font-medium"
-                        style={{ width: `${item.medium}%` }}
-                      >
-                        {item.medium}%
-                      </div>
-                      <div
-                        className="bg-[hsl(25,75%,50%)] flex items-center justify-center text-xs font-medium text-white"
-                        style={{ width: `${item.coarse}%` }}
-                      >
-                        {item.coarse}%
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{(m.confidence * 100).toFixed(1)}%</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(m.uploadedAt).toLocaleDateString()}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">
+                No data available yet. Upload sand samples to see analytics.
+              </p>
             </CardContent>
           </Card>
-        </div>
+        )}
       </div>
     </div>
   );

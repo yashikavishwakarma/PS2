@@ -2,12 +2,15 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Upload, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { Measurement } from "@shared/schema";
 
 const uploadSchema = z.object({
   latitude: z.number().min(-90).max(90),
@@ -20,7 +23,6 @@ type UploadFormData = z.infer<typeof uploadSchema>;
 export default function UploadForm() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
-  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
   const {
@@ -30,6 +32,39 @@ export default function UploadForm() {
     reset,
   } = useForm<UploadFormData>({
     resolver: zodResolver(uploadSchema),
+  });
+
+  const uploadMutation = useMutation<Measurement, Error, FormData>({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch('/api/predict', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/measurements'] });
+      toast({
+        title: "Upload successful!",
+        description: `Predicted: ${data.grainSizeClass} sand with ${(data.confidence * 100).toFixed(1)}% confidence`,
+      });
+      setSelectedFile(null);
+      setPreviewUrl("");
+      reset();
+    },
+    onError: (error) => {
+      toast({
+        title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,22 +86,15 @@ export default function UploadForm() {
       return;
     }
 
-    setIsUploading(true);
-    
-    // Simulated upload
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const formData = new FormData();
+    formData.append('image', selectedFile);
+    formData.append('latitude', data.latitude.toString());
+    formData.append('longitude', data.longitude.toString());
+    if (data.location) {
+      formData.append('location', data.location);
+    }
 
-    console.log("Upload data:", { ...data, file: selectedFile.name });
-    
-    toast({
-      title: "Upload successful!",
-      description: "Your sand sample has been analyzed",
-    });
-
-    setIsUploading(false);
-    setSelectedFile(null);
-    setPreviewUrl("");
-    reset();
+    uploadMutation.mutate(formData);
   };
 
   return (
@@ -161,10 +189,10 @@ export default function UploadForm() {
           <Button
             type="submit"
             className="w-full"
-            disabled={isUploading}
+            disabled={uploadMutation.isPending}
             data-testid="button-submit-upload"
           >
-            {isUploading ? "Analyzing..." : "Upload & Analyze"}
+            {uploadMutation.isPending ? "Analyzing..." : "Upload & Analyze"}
           </Button>
         </form>
       </CardContent>

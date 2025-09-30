@@ -1,58 +1,47 @@
+import { useQuery } from "@tanstack/react-query";
 import { MapPin, Beaker, TrendingUp, Layers } from "lucide-react";
 import StatsCard from "@/components/StatsCard";
 import MapView from "@/components/MapView";
 import PredictionCard from "@/components/PredictionCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import fineSandImg from "@assets/generated_images/Fine_sand_grain_microscope_1d351d8b.png";
-import mediumSandImg from "@assets/generated_images/Medium_sand_grain_microscope_348dfaf8.png";
-import coarseSandImg from "@assets/generated_images/Coarse_sand_grain_microscope_08ca6d71.png";
+import type { Measurement } from "@shared/schema";
 
 export default function Dashboard() {
-  // todo: remove mock functionality - replace with real data from API
-  const mockMarkers = [
-    {
-      id: "1",
-      latitude: 19.0760,
-      longitude: 72.8777,
-      grainSizeClass: "fine",
-      confidence: 0.95,
-      imageUrl: fineSandImg,
-      uploadedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      location: "Mumbai Beach",
-    },
-    {
-      id: "2",
-      latitude: 15.2993,
-      longitude: 74.1240,
-      grainSizeClass: "medium",
-      confidence: 0.89,
-      imageUrl: mediumSandImg,
-      uploadedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-      location: "Goa Coastline",
-    },
-    {
-      id: "3",
-      latitude: 13.0827,
-      longitude: 80.2707,
-      grainSizeClass: "coarse",
-      confidence: 0.92,
-      imageUrl: coarseSandImg,
-      uploadedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      location: "Chennai Marina",
-    },
-    {
-      id: "4",
-      latitude: 11.9416,
-      longitude: 79.8083,
-      grainSizeClass: "fine",
-      confidence: 0.88,
-      imageUrl: fineSandImg,
-      uploadedAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-      location: "Pondicherry Beach",
-    },
-  ];
+  const { data: measurements = [], isLoading } = useQuery<Measurement[]>({
+    queryKey: ["/api/measurements"],
+  });
 
-  const recentPredictions = mockMarkers.slice(0, 3);
+  const mapMarkers = measurements.map((m) => ({
+    id: m.id,
+    latitude: m.latitude,
+    longitude: m.longitude,
+    grainSizeClass: m.grainSizeClass,
+    confidence: m.confidence,
+    imageUrl: m.imageUrl,
+    uploadedAt: m.uploadedAt.toString(),
+    location: m.location || undefined,
+  }));
+
+  const recentPredictions = measurements.slice(0, 3);
+
+  const stats = {
+    total: measurements.length,
+    avgConfidence: measurements.length > 0 
+      ? (measurements.reduce((sum, m) => sum + m.confidence, 0) / measurements.length * 100).toFixed(1)
+      : "0",
+    beachSites: new Set(measurements.map(m => m.location).filter(Boolean)).size,
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading measurements...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -67,21 +56,19 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatsCard
             title="Total Measurements"
-            value="1,247"
+            value={stats.total}
             icon={MapPin}
-            trend={{ value: 12, isPositive: true }}
           />
           <StatsCard
             title="Beach Sites"
-            value="48"
+            value={stats.beachSites}
             icon={Beaker}
-            description="Across 5 states"
+            description={stats.beachSites > 0 ? "Unique locations" : "No data yet"}
           />
           <StatsCard
             title="Avg Confidence"
-            value="94.2%"
+            value={`${stats.avgConfidence}%`}
             icon={TrendingUp}
-            trend={{ value: 3, isPositive: true }}
           />
           <StatsCard
             title="Beach Types"
@@ -98,7 +85,7 @@ export default function Dashboard() {
                 <CardTitle>Interactive Coastal Map</CardTitle>
               </CardHeader>
               <CardContent className="h-[500px] p-0">
-                <MapView markers={mockMarkers} />
+                <MapView markers={mapMarkers} />
               </CardContent>
             </Card>
           </div>
@@ -109,9 +96,20 @@ export default function Dashboard() {
                 <CardTitle>Recent Predictions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {recentPredictions.map((prediction) => (
-                  <PredictionCard key={prediction.id} {...prediction} />
-                ))}
+                {recentPredictions.length > 0 ? (
+                  recentPredictions.map((prediction) => (
+                    <PredictionCard 
+                      key={prediction.id} 
+                      {...prediction}
+                      location={prediction.location || undefined}
+                      uploadedAt={prediction.uploadedAt.toString()}
+                    />
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No predictions yet. Upload your first sand sample!
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>
